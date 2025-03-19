@@ -777,5 +777,11 @@ virtual class AnchoredFixedInvDepthFactor : gtsam::NoiseModelFactor {
   Vector evaluateError(const gtsam::Pose3& pose0, const gtsam::Pose3& pose1);
 };
 
+#include <gtsam_unstable/slam/ExPoseConstraintFactor.h>
+virtual class ExPoseConstraintFactor :  gtsam::NoiseModelFactor {
+  ExPoseConstraintFactor(size_t key0, size_t key1, size_t key2, const gtsam::noiseModel::Base* model);
+  Vector evaluateError(const gtsam::Pose3& Twi, const gtsam::Pose3& Twc, const gtsam::Pose3& Tic);
+};
+
 
 } //\namespace gtsam
