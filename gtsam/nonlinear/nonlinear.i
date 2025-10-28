@@ -25,7 +25,7 @@ namespace gtsam {
 #include <gtsam/geometry/Unit3.h>
 #include <gtsam/navigation/ImuBias.h>
 #include <gtsam/navigation/NavState.h>
-
+#include <gtsam/nonlinear/CustomFactor.h>
 #include <gtsam/nonlinear/GraphvizFormatting.h>
 class GraphvizFormatting : gtsam::DotWriter {
   GraphvizFormatting();
@@ -716,5 +716,17 @@ marginalizeOut(const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& va
                const gtsam::FastVector<gtsam::Key>& keysToMarginalize);
 gtsam::Matrix BA2GTSAM(const gtsam::Matrix& H,const gtsam::Vector& v, const gtsam::Pose3& Tbc);
 gtsam::Vector GTSAM2BA(const gtsam::Vector& x, const gtsam::Pose3& Tbc);
-
+gtsam::LinearContainerFactor
+CustomHessianFactor(const gtsam::KeyVector& symbols,
+                    const gtsam::Values& values,
+                    const gtsam::Matrix& H,
+                    const gtsam::Vector& v);
+gtsam::FastVector<gtsam::LinearContainerFactor> Align2GTSAM_factors(
+    const gtsam::JacobianVector& H11,
+    const gtsam::JacobianVector& v11,
+    const gtsam::JacobianVector& wTcs,
+    const gtsam::FastVector<double>& ss,
+    const gtsam::FastVector<int>& ii,
+    const gtsam::FastVector<int>& jj,
+    const int pin);
 }  // namespace gtsam

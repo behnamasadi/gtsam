@@ -7,6 +7,7 @@
 #include <gtsam/nonlinear/LinearContainerFactor.h>
 #include <gtsam/linear/GaussianFactorGraph.h>
 #include "CustomMarginalization.h"
+#include <gtsam/inference/Symbol.h>
 
 gtsam::LinearContainerFactor
 gtsam::marginalizeOut(const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& values,
@@ -172,3 +173,168 @@ gtsam::Vector gtsam::GTSAM2BA(const gtsam::Vector& x, const gtsam::Pose3& Tbc) {
     }
     return xnew;
 }
+
+
+gtsam::LinearContainerFactor gtsam::CustomHessianFactor(
+    const gtsam::KeyVector& symbols_in,
+    const gtsam::Values& values,
+    const gtsam::Matrix& H,
+    const gtsam::Vector& v) {
+
+    gtsam::Matrix info_expand(H.rows() + 1, H.cols() + 1);
+    info_expand << H, v, v.transpose(), 100.0;
+
+    gtsam::FastVector<std::uint64_t> dims;
+    for (const auto& sym : symbols_in) {
+        if (sym >= gtsam::Symbol('x', 0) && sym - gtsam::Symbol('x', 0) < 100000) {
+            dims.push_back(6);
+        } else if (sym >=  gtsam::Symbol('s', 0) && sym -  gtsam::Symbol('s', 0) < 100000) {
+            dims.push_back(1);
+        }
+    }
+    // for(int i=0;i<dims.size();i++)
+    // std::cerr<<dims[i];
+    // std::cerr<<std::endl;
+    // std::cerr<<info_expand.rows()<<std::endl;
+    // std::cerr<<info_expand.cols()<<std::endl;
+    // std::cerr<<info_expand<<std::endl;
+
+    auto linearContainerFactor = gtsam::LinearContainerFactor(gtsam::HessianFactor(symbols_in, dims, info_expand),values);
+    
+    return linearContainerFactor;
+}
+
+gtsam::FastVector<gtsam::LinearContainerFactor> gtsam::Align2GTSAM_factors(
+    const gtsam::JacobianVector& H11,
+    const gtsam::JacobianVector& v11,
+    const gtsam::JacobianVector& wTcs,
+    const gtsam::FastVector<double>& ss,
+    const gtsam::FastVector<int>& ii,
+    const gtsam::FastVector<int>& jj,
+    const int pin)
+    {
+        gtsam::FastVector<gtsam::LinearContainerFactor> factors;
+
+        for (int idx = 0; idx < ii.size(); ++idx) {
+
+                int i = ii[idx] - pin;
+                int j = jj[idx] - pin;
+
+                Eigen::Matrix4d Xi = wTcs[i];
+                Xi.block<3,3>(0,0) *= ss[i];
+
+                Eigen::Matrix4d Xj = wTcs[j];
+                Xj.block<3,3>(0,0) *= ss[j];
+
+                Eigen::Matrix4d Xij = Xi.inverse() * Xj;
+
+                double s = std::cbrt(Xij.block<3,3>(0,0).determinant());
+                Eigen::Matrix3d R = Xij.block<3,3>(0,0) / s;
+                Eigen::Vector3d t = Xij.block<3,1>(0,3);
+
+                Eigen::Matrix<double,7,7> pXij_pXj = Eigen::Matrix<double,7,7>::Zero();
+                pXij_pXj.block<3,3>(0,0) = s * R;
+                pXij_pXj.block<3,3>(0,3) = skewSymmetric(t) * R;
+                pXij_pXj.block<3,1>(0,6) = -t;
+                pXij_pXj.block<3,3>(3,3) = R;
+                pXij_pXj(6,6) = 1;
+
+                s = ss[j];
+                Eigen::Matrix<double,7,7> pXj_pXj = Eigen::Matrix<double,7,7>::Zero();
+                pXj_pXj(0,6) = s;
+                pXj_pXj.block<3,3>(4,0) = s * Eigen::Matrix3d::Identity();
+                pXj_pXj.block<3,3>(1,3) = Eigen::Matrix3d::Identity();
+
+                Eigen::Matrix<double,7,7> pXij_pXj_ = pXij_pXj * pXj_pXj.inverse();
+
+                Eigen::Matrix<double,7,7> pXij_pXi = -Eigen::Matrix<double,7,7>::Identity();
+                s = ss[i];
+                Eigen::Matrix<double,7,7> pXi_pXi = Eigen::Matrix<double,7,7>::Zero();
+                pXi_pXi(0,6) = s;
+                pXi_pXi.block<3,3>(4,0) = s * Eigen::Matrix3d::Identity();
+                pXi_pXi.block<3,3>(1,3) = Eigen::Matrix3d::Identity();
+
+                Eigen::Matrix<double,7,7> pXij_pXi_ = pXij_pXi * pXi_pXi.inverse();
+
+                Eigen::Matrix<double,7,14> J;
+                J.block<7,7>(0, 0) = pXij_pXi_;
+                J.block<7,7>(0, 7) = pXij_pXj_;
+
+                Eigen::Matrix<double,7,7> H = H11[idx];
+                Eigen::Matrix<double,7,1> v = v11[idx];
+
+                Eigen::Matrix<double,14,14> HHH = J.transpose() * H * J;
+                Eigen::Matrix<double,14,1> vvv = J.transpose() * v;
+
+                gtsam::FastVector<Key> symbols;
+                symbols.push_back(gtsam::Symbol('s', i));
+                symbols.push_back(gtsam::Symbol('x', i));
+                symbols.push_back(gtsam::Symbol('s', j));
+                symbols.push_back(gtsam::Symbol('x', j));
+                gtsam::Values initials;
+
+                initials.insert(gtsam::Symbol('s', i), ss[i]);
+                initials.insert(gtsam::Symbol('s', j), ss[j]);
+                initials.insert(gtsam::Symbol('x', i), gtsam::Pose3(wTcs[i]));
+                initials.insert(gtsam::Symbol('x', j), gtsam::Pose3(wTcs[j]));
+                gtsam::Matrix HHHm = HHH;
+                gtsam::Vector vvvm = vvv;
+
+                factors.push_back(CustomHessianFactor(symbols,initials,HHH/1e6,-vvv/1e6));
+
+            // HHH 和 vvv 可用于后续线性化或求解
+        }
+            //     for idx in range(ii.shape[0]):
+            // i = ii[idx] - pin
+            // j = jj[idx] - pin
+
+            // Xi = np.copy(wTcs[i])
+            // Xi[0:3,0:3] *= ss[i]
+            // Xj = np.copy(wTcs[j])
+            // Xj[0:3,0:3] *= ss[j]
+            // Xij = np.linalg.inv(Xi) @ Xj
+
+            // s = np.power(np.linalg.det(Xij[0:3,0:3]),1.0/3)
+            // R = Xij[0:3,0:3]/s
+            // t = Xij[0:3,3]
+            // pXij_pXj = np.zeros([7,7])
+            // pXij_pXj[0:3,0:3] = s * R
+            // pXij_pXj[0:3,3:6] = skew_sym(t) @ R
+            // pXij_pXj[0:3,6] = -t
+            // pXij_pXj[3:6,3:6] = R
+            // pXij_pXj[6,6] = 1
+
+            // s = ss[j]
+            // pXj_pXj = np.zeros([7,7])
+            // pXj_pXj[0,6] = s
+            // pXj_pXj[4:7,0:3] = s*np.eye(3,3)
+            // pXj_pXj[1:4,3:6] = np.eye(3,3)
+            // pXij_pXj_ = pXij_pXj@np.linalg.inv(pXj_pXj)
+
+            // pXij_pXi = -np.eye(7,7)
+            // s = ss[i]
+            // pXi_pXi = np.zeros([7,7])
+            // pXi_pXi[0,6] = s
+            // pXi_pXi[4:7,0:3] = s*np.eye(3,3)
+            // pXi_pXi[1:4,3:6] = np.eye(3,3)
+            // pXij_pXi_ = pXij_pXi@np.linalg.inv(pXi_pXi)
+
+            // J = np.hstack([pXij_pXi_,pXij_pXj_])
+            // H = H11[0,idx,:,:]
+            // v = v11[0,idx,:]
+            // HHH = J.T @ H @ J
+            // vvv = J.T @ v
+
+        //     symbols = [S(i),X(i),S(j),X(j)]
+        //     initials = gtsam.Values()
+        //     initials.insert(S(i),ss[i])
+        //     initials.insert(S(j),ss[j])
+        //     initials.insert(X(i),gtsam.Pose3(wTcs[i]))
+        //     initials.insert(X(j),gtsam.Pose3(wTcs[j]))
+        //     # factors.append(CustomHessianFactor(symbols,initials,HHH/1e6,-vvv/1e6))
+        //     factors.append(gtsam.CustomHessianFactor(symbols,initials,HHH/1e6,-vvv/1e6))
+        // return factors
+
+        // return gtsam::FastVector<gtsam::LinearContainerFactor>();
+        return factors;
+    }

@@ -43,6 +43,32 @@ Vector GPSFactor::evaluateError(const Pose3& p,
 }
 
 //***************************************************************************
+void GPSFactorLever::print(const string& s, const KeyFormatter& keyFormatter) const {
+  cout << (s.empty() ? "" : s + " ") << "GPSFactor on " << keyFormatter(key())
+       << "\n";
+  cout << "  GPS measurement: " << nT_ << "\n";
+  noiseModel_->print("  noise model: ");
+}
+
+//***************************************************************************
+bool GPSFactorLever::equals(const NonlinearFactor& expected, double tol) const {
+  const This* e = dynamic_cast<const This*>(&expected);
+  return e != nullptr && Base::equals(*e, tol) && traits<Point3>::Equals(nT_, e->nT_, tol);
+}
+
+//***************************************************************************
+Vector GPSFactorLever::evaluateError(const Pose3& p,
+    OptionalMatrixType H) const {
+  Matrix36 Hpose;
+  Point3 p_gnss = p.transformFrom(lever_, H ? &Hpose : 0);
+
+  if (H) *H = Hpose;
+
+  return (p_gnss - nT_);
+}
+
+
+//***************************************************************************
 pair<Pose3, Vector3> GPSFactor::EstimateState(double t1, const Point3& NED1,
     double t2, const Point3& NED2, double timestamp) {
   // Estimate initial velocity as difference in NED frame

@@ -311,6 +311,17 @@ virtual class GPSFactor : gtsam::NonlinearFactor{
   gtsam::Point3 measurementIn() const;
 };
 
+virtual class GPSFactorLever : gtsam::NonlinearFactor{
+  GPSFactorLever(size_t key, const gtsam::Point3& gpsIn, const gtsam::Point3& lever,
+            const gtsam::noiseModel::Base* model);
+
+  // Testable
+  void print(string s = "", const gtsam::KeyFormatter& keyFormatter =
+                                gtsam::DefaultKeyFormatter) const;
+  bool equals(const gtsam::GPSFactorLever& expected, double tol);
+
+};
+
 virtual class GPSFactor2 : gtsam::NonlinearFactor {
   GPSFactor2(size_t key, const gtsam::Point3& gpsIn,
             const gtsam::noiseModel::Base* model);

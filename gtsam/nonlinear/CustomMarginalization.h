@@ -10,6 +10,7 @@
 #include <gtsam/nonlinear/LinearContainerFactor.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/base/Vector.h>
+#include <gtsam/nonlinear/CustomFactor.h>
 
 namespace gtsam {
 
@@ -29,5 +30,19 @@ gtsam::Matrix computeSchurComplement(const gtsam::Matrix& augmentedHessian, int 
 
 gtsam::Matrix BA2GTSAM(const gtsam::Matrix& H,const gtsam::Vector& v, const gtsam::Pose3& Tbc);
 gtsam::Vector GTSAM2BA(const gtsam::Vector& x, const gtsam::Pose3& Tbc);
+gtsam::LinearContainerFactor CustomHessianFactor(
+    const gtsam::KeyVector& symbols_in,
+    const gtsam::Values& values,
+    const gtsam::Matrix& H,
+    const gtsam::Vector& v);
+// Align2GTSAM_factors(H11: np.ndarray, v11: np.ndarray, wTcs, ss, ii, jj, pin):
+gtsam::FastVector<gtsam::LinearContainerFactor> Align2GTSAM_factors(
+    const gtsam::JacobianVector& H11,
+    const gtsam::JacobianVector& v11,
+    const gtsam::JacobianVector& wTcs,
+    const gtsam::FastVector<double>& ss,
+    const gtsam::FastVector<int>& ii,
+    const gtsam::FastVector<int>& jj,
+    const int pin);
 }
 #endif //DMVIO_MARGINALIZATION_H
