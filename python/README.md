@@ -25,7 +25,13 @@ For instructions on updating the version of the [wrap library](https://github.co
   ```bash
   cmake .. -DGTSAM_BUILD_PYTHON=1 -DGTSAM_PYTHON_VERSION=3.6.10
   ```
+  If you want TBB support on Ubuntu, install it first with `sudo apt-get install libtbb-dev`.
   If you do not have TBB installed, you should also provide the argument `-DGTSAM_WITH_TBB=OFF`.
+- On Ubuntu 24.04 with GCC 13 and Boost 1.83, Python wrapper compilation can fail in Boost serialization. The following configuration is known to work:
+  ```bash
+  cmake .. -DGTSAM_BUILD_PYTHON=1 -DGTSAM_PYTHON_VERSION=3.11 -DPYTHON_EXECUTABLE="$(which python)" -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF
+  ```
+  This keeps TBB enabled if `libtbb-dev` is installed while avoiding the Boost serialization error in the generated wrapper sources.
 - Build GTSAM and the wrapper with `make` (or `ninja` if you use `-GNinja`).
 
 - To install, simply run `make python-install` (`ninja python-install`).

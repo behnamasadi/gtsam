@@ -23,7 +23,7 @@ $ make install
        Ensure that CMake prints "Use Intel TBB : Yes".  To disable the use of TBB,
        disable the CMake flag `GTSAM_WITH_TBB` (enabled by default) by providing
        the argument `-DGTSAM_WITH_TBB=OFF` to `cmake`.  On Ubuntu, TBB may be
-       installed from the Ubuntu repositories, and for other platforms it may be
+       installed with `sudo apt-get install libtbb-dev`, and for other platforms it may be
        downloaded from https://www.threadingbuildingblocks.org/
      - GTSAM may be configured to use MKL by toggling `GTSAM_WITH_EIGEN_MKL` and
        `GTSAM_WITH_EIGEN_MKL_OPENMP` to `ON`; however, best performance is usually
@@ -66,6 +66,21 @@ execute commands as follows for an out-of-source build:
 
   This will build the library and unit tests, run all of the unit tests,
   and then install the library itself.
+
+## Python Wrapper Note for Ubuntu 24.04
+
+On Ubuntu 24.04 with GCC 13 and Boost 1.83, the Python wrapper build can fail
+inside Boost serialization when `GTSAM_ENABLE_BOOST_SERIALIZATION` is left on.
+If you are building Python bindings on that platform, install TBB and configure
+the build like this:
+
+```sh
+$ sudo apt-get install libtbb-dev
+$ cmake .. -DGTSAM_BUILD_PYTHON=1 -DGTSAM_PYTHON_VERSION=3.11 -DPYTHON_EXECUTABLE="$(which python)" -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF
+$ make python-install -j12
+```
+
+This preserves TBB support while avoiding the wrapper compilation failure.
 
 ## Boost Notes
 
@@ -226,5 +241,4 @@ Failing to specify `LD_PRELOAD` may lead to errors such as:
 or
 `Intel MKL FATAL ERROR: Cannot load libmkl_avx2.so or libmkl_def.so.`
 when importing GTSAM using the python wrapper.
-
 

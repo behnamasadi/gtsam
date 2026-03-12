@@ -62,6 +62,22 @@ Optional prerequisites - used automatically if findable by CMake:
     - See [INSTALL.md](INSTALL.md) for more installation information
     - Note that MKL may not provide a speedup in all cases. Make sure to benchmark your problem with and without MKL.
 
+### Python Build Note for Ubuntu 24.04
+
+When building the Python wrapper on Ubuntu 24.04 with the system toolchain
+(GCC 13 and Boost 1.83), the generated wrapper sources can fail during Boost
+serialization instantiation. For this configuration, use the following
+configuration:
+
+```sh
+sudo apt-get install libtbb-dev
+cmake .. -DGTSAM_BUILD_PYTHON=1 -DGTSAM_PYTHON_VERSION=3.11 -DPYTHON_EXECUTABLE="$(which python)" -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF
+make python-install -j12
+```
+
+This keeps TBB enabled while avoiding the Boost serialization failure in the
+Python wrapper build.
+
 ## GTSAM 4 Compatibility
 
 GTSAM 4 introduces several new features, most notably Expressions and a Python toolbox. It also introduces traits, a C++ technique that allows optimizing with non-GTSAM types. That opens the door to retiring geometric types such as Point2 and Point3 to pure Eigen types, which we also do. A significant change which will not trigger a compile error is that zero-initializing of Point2 and Point3 is deprecated, so please be aware that this might render functions using their default constructor incorrect.
